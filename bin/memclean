@@ -1,0 +1,3 @@
+#!/bin/bash
+# 清理 macOS 文件缓存
+sudo purge && echo "Memory cache purged"

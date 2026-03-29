@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 1 ]; then
+  echo "Usage: csvlens_utf8.sh <file>" >&2
+  exit 1
+fi
+
+file=$1
+
+if [ ! -f "$file" ]; then
+  echo "File not found: $file" >&2
+  read -n1 -rp "按任意键返回..." || true
+  exit 1
+fi
+
+detect_encoding() {
+  # Manual override
+  if [ -n "${CSVLENS_ENCODING:-}" ]; then
+    printf '%s\n' "$CSVLENS_ENCODING"
+    return
+  fi
+
+  # Prefer uchardet if available (better for中文/多种编码)
+  if command -v uchardet >/dev/null 2>&1; then
+    enc=$(uchardet "$file" 2>/dev/null | awk '{print $1}' | tr 'A-Z' 'a-z')
+    case "$enc" in
+      utf-8|us-ascii)
+        printf 'utf-8\n'
+        return
+        ;;
+      gb2312|gbk|gb18030)
+        printf 'gb18030\n'
+        return
+        ;;
+      big5)
+        printf 'big5\n'
+        return
+        ;;
+      shift_jis|sjis|cp932)
+        printf 'cp932\n'
+        return
+        ;;
+      iso-8859-1|iso-8859-2|iso-8859-15)
+        printf '%s\n' "$enc"
+        return
+        ;;
+      *)
+        :
+        ;;
+    esac
+  fi
+
+  # Fallback: file -I
+  enc=$(file -I "$file" 2>/dev/null | sed -n 's/.*charset=\(.*\)$/\1/p' | tr 'A-Z' 'a-z')
+  if [ -n "$enc" ]; then
+    printf '%s\n' "$enc"
+  else
+    printf 'utf-8\n'
+  fi
+}
+
+encoding=$(detect_encoding)
+
+case "${encoding:-utf-8}" in
+  utf-8|us-ascii)
+    exec csvlens "$file"
+    ;;
+  *)
+    # On macOS/BSD, use mktemp -t
+    tmp=$(mktemp -t csvlens)
+    tmp="${tmp}.csv"
+
+    # Try converting; if file(1) mis-detects, you can override with CSVLENS_ENCODING
+    if iconv -f "$encoding" -t utf-8 "$file" >"$tmp" 2>/dev/null; then
+      trap 'rm -f "$tmp"' EXIT
+      exec csvlens "$tmp"
+    else
+      echo "csvlens 只支持 UTF-8，检测到编码: $encoding" >&2
+      echo "如果内容是中文且乱码，可以试试：" >&2
+      echo "  CSVLENS_ENCODING=gb18030 csvlens_utf8.sh \"$file\"" >&2
+      read -n1 -rp "按任意键返回..." || true
+      exit 1
+    fi
+    ;;
+esac

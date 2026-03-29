@@ -1,0 +1,20 @@
+#!/bin/bash
+# 清理 Clash Verge 残留的系统代理设置
+# 用于 Clash 非正常退出后恢复网络
+
+INTERFACE="${1:-Wi-Fi}"
+
+echo "正在清理系统代理设置 (接口: $INTERFACE)..."
+
+networksetup -setwebproxystate "$INTERFACE" off
+networksetup -setsecurewebproxystate "$INTERFACE" off
+networksetup -setsocksfirewallproxystate "$INTERFACE" off
+
+echo "✓ 系统代理已清理"
+
+# 显示当前状态
+echo ""
+echo "当前代理状态:"
+echo "  Web Proxy:    $(networksetup -getwebproxy "$INTERFACE" | grep Enabled | awk '{print $2}')"
+echo "  HTTPS Proxy:  $(networksetup -getsecurewebproxy "$INTERFACE" | grep Enabled | awk '{print $2}')"
+echo "  SOCKS Proxy:  $(networksetup -getsocksfirewallproxy "$INTERFACE" | grep Enabled | awk '{print $2}')"

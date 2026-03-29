@@ -1,0 +1,5 @@
+#!/bin/bash
+# 清理 nvim 僵尸进程和临时文件
+pkill -f "nvim --headless" 2>/dev/null
+rm -f ~/.local/state/nvim/shada/*.tmp.* 2>/dev/null
+echo "nvim cleaned"

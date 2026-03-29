@@ -1,0 +1,5 @@
+#!/bin/bash
+# Copy file to clipboard (for pasting in Finder, etc.)
+[[ -z "$1" ]] && { echo "Usage: maccopy <file>"; exit 1; }
+[[ "$1" = /* ]] && path="$1" || path="$(pwd)/$1"
+osascript -e 'on run args' -e 'set the clipboard to POSIX file (first item of args)' -e end "$path"

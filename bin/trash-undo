@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+UNDO_LOG="/tmp/yazi-trash-undo"
+
+# --- Mode: trash (default) ---
+# Usage: trash-undo.sh file1 file2 ...
+# Moves files to Trash via rmtrash and logs original paths for undo
+
+# --- Mode: undo ---
+# Usage: trash-undo.sh --undo
+# Restores the last batch of trashed files to their original locations
+
+if [ "${1:-}" = "--undo" ]; then
+    if [ ! -f "$UNDO_LOG" ] || [ ! -s "$UNDO_LOG" ]; then
+        echo "没有可撤销的删除操作" >&2
+        exit 1
+    fi
+
+    # Read the last batch (lines until we hit a blank line or start of file)
+    restored=0
+    failed=0
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        original_path="$line"
+        filename=$(basename "$original_path")
+        target_dir=$(dirname "$original_path")
+        trash_path="$HOME/.Trash/$filename"
+
+        if [ -e "$trash_path" ]; then
+            if [ -e "$original_path" ]; then
+                echo "跳过: $original_path 已存在（原位有同名文件）" >&2
+                ((failed++)) || true
+            else
+                mv "$trash_path" "$original_path"
+                echo "还原: $filename → $target_dir/"
+                ((restored++)) || true
+            fi
+        else
+            echo "跳过: $filename 不在回收站中" >&2
+            ((failed++)) || true
+        fi
+    done < "$UNDO_LOG"
+
+    # Clear the log after undo
+    rm -f "$UNDO_LOG"
+
+    if [ "$restored" -gt 0 ]; then
+        echo "已还原 $restored 个文件"
+    fi
+    if [ "$failed" -gt 0 ]; then
+        echo "$failed 个文件无法还原" >&2
+    fi
+    exit 0
+fi
+
+# --- Trash mode ---
+if [ "$#" -lt 1 ]; then
+    echo "Usage: trash-undo.sh file1 [file2 ...]" >&2
+    echo "       trash-undo.sh --undo" >&2
+    exit 1
+fi
+
+# Log original absolute paths (overwrite = only remember last batch)
+> "$UNDO_LOG"
+for f in "$@"; do
+    if [ -e "$f" ]; then
+        # Resolve to absolute path
+        abs=$(cd "$(dirname "$f")" && echo "$PWD/$(basename "$f")")
+        echo "$abs" >> "$UNDO_LOG"
+    fi
+done
+
+# Actually trash
+rmtrash -rv "$@"

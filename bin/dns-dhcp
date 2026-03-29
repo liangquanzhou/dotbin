@@ -1,0 +1,7 @@
+#!/bin/bash
+# 恢复 DHCP 自动 DNS
+
+INTERFACE="${1:-Wi-Fi}"
+
+networksetup -setdnsservers "$INTERFACE" empty \
+  && echo "✅ DNS 已恢复为 DHCP 自动"

@@ -1,0 +1,13 @@
+#!/bin/bash
+# Clash 仅重载配置（不改 DNS、不改路由）
+
+SOCKET="/tmp/verge/verge-mihomo.sock"
+
+if [ ! -S "$SOCKET" ]; then
+    echo "❌ 未找到 Clash Verge socket: $SOCKET"
+    exit 1
+fi
+
+curl -s --unix-socket "$SOCKET" http://localhost/configs \
+    -X PUT -d '{"path":""}' -H "Content-Type: application/json" \
+    && echo "✅ Clash 配置已重载"

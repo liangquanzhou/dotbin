@@ -4,11 +4,11 @@ set -euo pipefail
 UNDO_LOG="/tmp/yazi-trash-undo"
 
 # --- Mode: trash (default) ---
-# Usage: trash-undo.sh file1 file2 ...
+# Usage: trash-undo file1 file2 ...
 # Moves files to Trash via rmtrash and logs original paths for undo
 
 # --- Mode: undo ---
-# Usage: trash-undo.sh --undo
+# Usage: trash-undo --undo
 # Restores the last batch of trashed files to their original locations
 
 if [ "${1:-}" = "--undo" ]; then
@@ -56,8 +56,8 @@ fi
 
 # --- Trash mode ---
 if [ "$#" -lt 1 ]; then
-    echo "Usage: trash-undo.sh file1 [file2 ...]" >&2
-    echo "       trash-undo.sh --undo" >&2
+    echo "Usage: trash-undo file1 [file2 ...]" >&2
+    echo "       trash-undo --undo" >&2
     exit 1
 fi
 

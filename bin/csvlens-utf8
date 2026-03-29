@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: csvlens_utf8.sh <file>" >&2
+  echo "Usage: csvlens-utf8 <file>" >&2
   exit 1
 fi
 
@@ -78,7 +78,7 @@ case "${encoding:-utf-8}" in
     else
       echo "csvlens 只支持 UTF-8，检测到编码: $encoding" >&2
       echo "如果内容是中文且乱码，可以试试：" >&2
-      echo "  CSVLENS_ENCODING=gb18030 csvlens_utf8.sh \"$file\"" >&2
+      echo "  CSVLENS_ENCODING=gb18030 csvlens-utf8 \"$file\"" >&2
       read -n1 -rp "按任意键返回..." || true
       exit 1
     fi

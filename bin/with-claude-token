@@ -1,0 +1,21 @@
+#!/bin/bash
+# Wrapper: 从 ~/.config/secrets/claude-setup-token 读取 CLAUDE_CODE_OAUTH_TOKEN
+# 然后 exec 后续命令。
+# 用途：替代在 launchd plist 里明文写 token（plist 全局可读）。
+set -euo pipefail
+
+TOKEN_FILE="$HOME/.config/secrets/claude-setup-token"
+
+if [[ ! -r "$TOKEN_FILE" ]]; then
+    echo "[with-claude-token] FATAL: token 文件不存在或无法读取: $TOKEN_FILE" >&2
+    exit 78  # EX_CONFIG
+fi
+
+export CLAUDE_CODE_OAUTH_TOKEN="$(cat "$TOKEN_FILE")"
+
+if [[ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]]; then
+    echo "[with-claude-token] FATAL: token 文件为空" >&2
+    exit 78
+fi
+
+exec "$@"

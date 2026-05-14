@@ -1,0 +1,30 @@
+#!/bin/bash
+# zlib-keepalive — auto-login Z-Library inside Chrome Beta if the session has lapsed.
+#
+# Reads credentials from pass: pass show zlib/email, pass show zlib/password.
+# Cookies live in Chrome Beta (debug profile), shared with all CDP-using skills.
+#
+# Exit codes:
+#   0 — session live (or successfully refreshed)
+#   1 — login required but failed (bad creds, captcha, etc) — auth-doctor will surface
+#   2 — inconclusive (CDP down, pass missing, etc)
+set -uo pipefail
+
+PYTHON="${ZLIB_KEEPALIVE_PYTHON:-$HOME/src/personal/zlib-cli/.venv/bin/python}"
+SCRIPT="${ZLIB_KEEPALIVE_SCRIPT:-$HOME/.local/share/zlib-keepalive/keepalive.py}"
+
+if [[ ! -x "$PYTHON" ]]; then
+    echo "zlib-keepalive: no Playwright venv at $PYTHON" >&2
+    exit 2
+fi
+if [[ ! -f "$SCRIPT" ]]; then
+    echo "zlib-keepalive: helper script missing at $SCRIPT" >&2
+    exit 2
+fi
+
+# Bypass any HTTP_PROXY for loopback CDP.
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+export NO_PROXY="127.0.0.1,localhost"
+export no_proxy="127.0.0.1,localhost"
+
+exec "$PYTHON" "$SCRIPT" "$@"

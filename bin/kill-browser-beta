@@ -1,0 +1,33 @@
+#!/bin/bash
+# Kill Chrome Beta
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+
+NAME="Chrome Beta"
+
+if ! pgrep -f "Google Chrome Beta" >/dev/null 2>&1; then
+    log_warn "$NAME: 没有运行中的进程"
+    exit 0
+fi
+
+# 优雅关闭 Chrome Beta
+osascript -e 'quit app "Google Chrome Beta"' 2>/dev/null && log_info "$NAME: 已关闭"
+
+# 等待进程退出
+for ((i=1; i<=5; i++)); do
+    if ! pgrep -f "Google Chrome Beta" >/dev/null 2>&1; then
+        log_info "$NAME: 清理完成"
+        exit 0
+    fi
+    sleep 0.5
+done
+
+# 如果还没退出，强制杀
+pkill -9 -f "Google Chrome Beta" 2>/dev/null && log_info "$NAME: 强制终止"

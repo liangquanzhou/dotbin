@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# tcc-doctor — diagnose macOS TCC permission state for current shell
+#
+# When a GUI app (terminal, IDE, etc.) holds a stale TCC capability token,
+# its child processes get EPERM/EACCES on ~/Documents and other TCC-controlled
+# folders even though System Settings shows the permission as granted.
+#
+# This tool reports the precise errno and recommends the minimal fix —
+# typically a 3-second app restart, not a full reboot.
+
+show_help() {
+  cat <<'EOF'
+Usage: tcc-doctor [--quiet]
+
+Diagnose TCC permission state for ~/Documents, ~/Downloads, ~/Desktop, ~/Movies.
+
+Output:
+  Reports exact errno on failure and recommends the minimal fix.
+
+  errno 1 / 13 (EPERM / EACCES)
+    → Stale TCC token. Quit + reopen the parent GUI app.
+      Child processes inherit the token, so a new shell from the SAME old app
+      won't help — you must restart the app itself.
+
+  errno 4 (EINTR)
+    → Kernel-level EndpointSecurity hook stuck (common on enterprise macs
+      running third-party security agents). Cold reboot required.
+
+Options:
+  --quiet      Silent when everything is OK (suitable for shell startup hooks)
+  -h, --help   Show this help
+
+Exit codes:
+  0  all sensitive folders accessible
+  1  at least one folder denied
+EOF
+}
+
+quiet=0
+case "${1:-}" in
+  -h|--help) show_help; exit 0 ;;
+  --quiet)   quiet=1 ;;
+  "")        ;;
+  *)         echo "tcc-doctor: unknown option: $1" >&2; show_help >&2; exit 2 ;;
+esac
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "tcc-doctor: python3 is required to read numeric errno" >&2
+  exit 2
+fi
+
+probe_all() {
+  # Probe every path in a single python3 invocation to avoid repeated startup cost.
+  # Output format per path: "<path>\t<errno>:<NAME>" on failure, "<path>\tOK" on success.
+  python3 -c '
+import os, sys, errno
+for d in sys.argv[1:]:
+    if not os.path.exists(d):
+        continue
+    try:
+        os.listdir(d)
+        print(f"{d}\tOK")
+    except OSError as e:
+        name = errno.errorcode.get(e.errno, "UNKNOWN")
+        print(f"{d}\t{e.errno}:{name}")
+' "$@"
+}
+
+dirs=("$HOME/Documents" "$HOME/Downloads" "$HOME/Desktop" "$HOME/Movies")
+problems=()
+
+while IFS=$'\t' read -r path code; do
+  [[ "$code" == "OK" ]] && continue
+  problems+=("$path|$code")
+done < <(probe_all "${dirs[@]}")
+
+if [[ ${#problems[@]} -eq 0 ]]; then
+  [[ $quiet -eq 0 ]] && echo "✅ TCC OK — all sensitive folders accessible from this shell"
+  exit 0
+fi
+
+echo "⚠️  TCC permission issue detected in this shell:"
+echo
+
+has_eintr=0
+has_eperm=0
+for p in "${problems[@]}"; do
+  path="${p%|*}"
+  code="${p#*|}"
+  errno_num="${code%%:*}"
+  errno_name="${code#*:}"
+  echo "  ❌ ${path/#$HOME/~}: errno=${errno_num} (${errno_name})"
+  case "$errno_num" in
+    4)    has_eintr=1 ;;
+    1|13) has_eperm=1 ;;
+  esac
+done
+
+echo
+echo "📋 Recommended fix:"
+
+# Detect enterprise EndpointSecurity agents that commonly cause EINTR.
+has_es_agent=0
+[[ -d /opt/didi/lca ]] && has_es_agent=1
+# Add other known agents here if you encounter them, e.g. CrowdStrike, SentinelOne, etc.
+
+if [[ $has_eintr -eq 1 ]]; then
+  echo "  🚨 EINTR detected — kernel-level denial."
+  if [[ $has_es_agent -eq 1 ]]; then
+    echo "     A third-party EndpointSecurity agent is installed (/opt/didi/lca)."
+    echo "     Its kernel hook is likely stuck. Cold reboot is the only reliable fix."
+  else
+    echo "     Cold reboot recommended (EndpointSecurity hook reset only happens at boot)."
+  fi
+elif [[ $has_eperm -eq 1 ]]; then
+  # Walk up the process tree to find the GUI app (top ancestor whose parent is launchd/init).
+  pid=$$
+  while :; do
+    ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+    [[ -z "$ppid" || "$ppid" == "0" || "$ppid" == "1" ]] && break
+    pid=$ppid
+  done
+  parent_app=$(ps -o comm= -p "$pid" 2>/dev/null | sed 's|.*/||')
+  [[ -z "$parent_app" ]] && parent_app="the GUI app"
+
+  echo "  🔄 Stale TCC token — the GUI app launching this shell needs to restart."
+  echo "     1. Quit the GUI app you're using (most likely: ${parent_app})"
+  echo "     2. Reopen it"
+  echo "     3. Open a new shell from the fresh app"
+  echo
+  echo "     Note: opening another shell from the SAME old app won't help — the"
+  echo "     stale token lives in the GUI app process, not the shell."
+fi
+
+exit 1

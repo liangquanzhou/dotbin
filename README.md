@@ -27,6 +27,7 @@ cd dotbin && make install
 | `maccopy` | Copy file to clipboard for Finder paste |
 | `memclean` | Purge macOS file cache |
 | `nvimclean` | Kill headless nvim zombies and clean temp files |
+| `tcc-doctor` | Diagnose macOS TCC permission state, report exact errno, recommend minimal fix |
 | `trash-undo` | Trash files via rmtrash with undo support |
 | `wake` | Disable sleep on lid close (re-enables on Ctrl+C) |
 
